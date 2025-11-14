@@ -11,6 +11,7 @@ import { PostCard } from '@/components/feed/PostCard';
 import { FriendRequestButton } from '@/components/friends/FriendRequestButton';
 import { FriendsList } from '@/components/friends/FriendsList';
 import { ProfileHonorBoard } from '@/components/profile/ProfileHonorBoard';
+import { ChatButton } from '@/components/chat/ChatButton';
 
 const Profile = () => {
   const navigate = useNavigate();
@@ -20,6 +21,7 @@ const Profile = () => {
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string>('');
   const [isOwnProfile, setIsOwnProfile] = useState(false);
+  const [isFriend, setIsFriend] = useState(false);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -43,6 +45,11 @@ const Profile = () => {
       
       setIsOwnProfile(session ? profileId === session.user.id : false);
       fetchProfile(profileId);
+      
+      // Check friendship status
+      if (session && profileId !== session.user.id) {
+        checkFriendship(session.user.id, profileId);
+      }
     };
 
     checkAuth();
@@ -62,6 +69,17 @@ const Profile = () => {
 
     return () => subscription.unsubscribe();
   }, [navigate, userId]);
+
+  const checkFriendship = async (currentId: string, friendId: string) => {
+    const { data } = await supabase
+      .from('friendships')
+      .select('status')
+      .or(`and(user_id.eq.${currentId},friend_id.eq.${friendId}),and(user_id.eq.${friendId},friend_id.eq.${currentId})`)
+      .eq('status', 'accepted')
+      .maybeSingle();
+
+    setIsFriend(!!data);
+  };
 
   const fetchProfile = async (profileId: string) => {
     try {
@@ -144,8 +162,16 @@ const Profile = () => {
               <CardTitle className="text-xl sm:text-2xl">{profile?.username}</CardTitle>
               <p className="text-sm sm:text-base text-muted-foreground">{profile?.full_name || 'Chưa đặt tên'}</p>
               {!isOwnProfile && currentUserId && (
-                <div className="mt-4">
+                <div className="mt-4 flex gap-2 justify-center flex-wrap">
                   <FriendRequestButton userId={profile.id} currentUserId={currentUserId} />
+                  {isFriend && (
+                    <ChatButton
+                      friendId={profile.id}
+                      friendName={profile.username}
+                      friendAvatar={profile.avatar_url}
+                      currentUserId={currentUserId}
+                    />
+                  )}
                 </div>
               )}
             </CardHeader>
