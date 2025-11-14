@@ -56,6 +56,16 @@ export const SearchDialog = () => {
       setLoading(true);
 
       try {
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        // Log search for rate limiting
+        if (user) {
+          await supabase.from('search_logs').insert({
+            user_id: user.id,
+            search_query: debouncedQuery
+          });
+        }
+
         // Search profiles
         const { data: profileData } = await supabase
           .from('profiles')

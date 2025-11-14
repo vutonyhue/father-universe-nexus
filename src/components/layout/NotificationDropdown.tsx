@@ -28,15 +28,63 @@ export const NotificationDropdown = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Notifications feature coming soon
+    fetchNotifications();
+
+    // Subscribe to real-time notifications
+    const channel = supabase
+      .channel('notifications')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notifications'
+        },
+        () => {
+          fetchNotifications();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const fetchNotifications = async () => {
-    // Feature coming soon
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data } = await supabase
+      .from('notifications')
+      .select(`
+        id,
+        type,
+        read,
+        created_at,
+        post_id,
+        actor:actor_id (
+          username,
+          avatar_url
+        )
+      `)
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    if (data) {
+      setNotifications(data as any);
+      setUnreadCount(data.filter(n => !n.read).length);
+    }
   };
 
   const markAsRead = async (notificationId: string) => {
-    // Feature coming soon
+    await supabase
+      .from('notifications')
+      .update({ read: true })
+      .eq('id', notificationId);
+    
+    fetchNotifications();
   };
 
   const handleNotificationClick = async (notification: Notification) => {
