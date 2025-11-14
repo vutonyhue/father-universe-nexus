@@ -81,17 +81,8 @@ export const PostCard = ({ post, currentUserId, onPostDeleted }: PostCardProps) 
   };
 
   const handleRepost = async () => {
-    try {
-      const { error } = await supabase.from('shared_posts').insert({
-        user_id: currentUserId,
-        original_post_id: post.id,
-      });
-
-      if (error) throw error;
-      toast.success('Post shared to your profile!');
-    } catch (error: any) {
-      toast.error('Failed to share post');
-    }
+    // Feature coming soon
+    toast.info('Tính năng đang được phát triển!');
   };
 
   const handleProfileClick = () => {

@@ -31,19 +31,8 @@ export const HistoryTab = () => {
 
       setLoading(true);
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const { data, error } = await supabase
-            .from('transactions')
-            .select('*')
-            .eq('user_id', user.id)
-            .order('created_at', { ascending: false })
-            .limit(10);
-
-          if (!error && data) {
-            setTransactions(data);
-          }
-        }
+        // Transactions feature not yet implemented
+        setTransactions([]);
       } catch (error) {
         console.error('Error loading transactions:', error);
       } finally {

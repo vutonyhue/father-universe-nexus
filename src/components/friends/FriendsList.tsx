@@ -5,9 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { UserMinus, UserCheck, X } from "lucide-react";
+import { UserMinus, UserCheck, X, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import { ChatDialog } from "@/components/chat/ChatDialog";
 
 interface Friend {
   id: string;
@@ -26,6 +27,8 @@ export const FriendsList = ({ userId }: FriendsListProps) => {
   const [pendingRequests, setPendingRequests] = useState<Friend[]>([]);
   const [sentRequests, setSentRequests] = useState<Friend[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedFriend, setSelectedFriend] = useState<Friend | null>(null);
+  const [chatOpen, setChatOpen] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -252,6 +255,16 @@ export const FriendsList = ({ userId }: FriendsListProps) => {
                       >
                         <UserMinus className="w-4 h-4" />
                       </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedFriend(friend);
+                          setChatOpen(true);
+                        }}
+                      >
+                        <MessageCircle className="w-4 h-4" />
+                      </Button>
                     </div>
                   ))}
                 </div>
@@ -338,6 +351,16 @@ export const FriendsList = ({ userId }: FriendsListProps) => {
           </TabsContent>
         </Tabs>
       </CardContent>
+      {selectedFriend && (
+        <ChatDialog
+          open={chatOpen}
+          onOpenChange={setChatOpen}
+          friendId={selectedFriend.id}
+          friendName={selectedFriend.username}
+          friendAvatar={selectedFriend.avatar_url}
+          currentUserId={userId}
+        />
+      )}
     </Card>
   );
 };
