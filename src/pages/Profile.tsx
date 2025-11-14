@@ -1,201 +1,207 @@
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Card } from "@/components/ui/card";
-import { Home, Users, Bell, Settings, Image, Heart, MessageCircle, Share2, Menu } from "lucide-react";
-import { Link } from "react-router-dom";
-import { useState } from "react";
-
-interface Post {
-  id: number;
-  author: string;
-  content: string;
-  likes: number;
-  comments: number;
-  timestamp: string;
-}
+import { useEffect, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
+import { Navbar } from '@/components/layout/Navbar';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { EditProfile } from '@/components/profile/EditProfile';
+import { PostCard } from '@/components/feed/PostCard';
+import { FriendRequestButton } from '@/components/friends/FriendRequestButton';
+import { FriendsList } from '@/components/friends/FriendsList';
+import { ProfileHonorBoard } from '@/components/profile/ProfileHonorBoard';
 
 const Profile = () => {
-  const [posts] = useState<Post[]>([
-    {
-      id: 1,
-      author: "Nguyễn Văn A",
-      content: "Chào mọi người! Rất vui được tham gia F.U. Ecosystem. Cùng nhau xây dựng nền kinh tế yêu thương nhé! 💜✨",
-      likes: 42,
-      comments: 8,
-      timestamp: "2 giờ trước"
-    },
-    {
-      id: 2,
-      author: "Trần Thị B",
-      content: "Mình vừa nhận được 999 CLC từ bài đăng đầu tiên. Quá tuyệt vời! Cảm ơn Father Universe đã tạo ra hệ sinh thái này 🙏",
-      likes: 87,
-      comments: 15,
-      timestamp: "5 giờ trước"
-    },
-    {
-      id: 3,
-      author: "Lê Văn C",
-      content: "Ai muốn tìm hiểu về Web3 và blockchain không? Mình có thể chia sẻ kinh nghiệm nhé!",
-      likes: 156,
-      comments: 23,
-      timestamp: "1 ngày trước"
+  const navigate = useNavigate();
+  const { userId } = useParams();
+  const [profile, setProfile] = useState<any>(null);
+  const [posts, setPosts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [currentUserId, setCurrentUserId] = useState<string>('');
+  const [isOwnProfile, setIsOwnProfile] = useState(false);
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session) {
+        setCurrentUserId(session.user.id);
+      }
+      
+      // If userId param exists, view that profile (anyone can view)
+      // If no userId param, show own profile if logged in, otherwise redirect to auth
+      let profileId = userId;
+      if (!userId) {
+        if (session) {
+          profileId = session.user.id;
+        } else {
+          navigate('/auth');
+          return;
+        }
+      }
+      
+      setIsOwnProfile(session ? profileId === session.user.id : false);
+      fetchProfile(profileId);
+    };
+
+    checkAuth();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session) {
+        setCurrentUserId(session.user.id);
+        // Update isOwnProfile when auth state changes
+        if (userId) {
+          setIsOwnProfile(session.user.id === userId);
+        }
+      } else {
+        setCurrentUserId('');
+        setIsOwnProfile(false);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [navigate, userId]);
+
+  const fetchProfile = async (profileId: string) => {
+    try {
+      
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', profileId)
+        .single();
+
+      if (error) throw error;
+      setProfile(data);
+
+      // Fetch user posts
+      const { data: postsData } = await supabase
+        .from('posts')
+        .select(`
+          *,
+          profiles (username, avatar_url),
+          reactions (id, user_id),
+          comments (id)
+        `)
+        .eq('user_id', profileId)
+        .order('created_at', { ascending: false });
+
+      setPosts(postsData || []);
+    } catch (error) {
+      console.error('Error fetching profile:', error);
+    } finally {
+      setLoading(false);
     }
-  ]);
+  };
+
+  const handlePostDeleted = () => {
+    const profileId = userId || currentUserId;
+    if (profileId) {
+      fetchProfile(profileId);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navbar />
+        <main className="container max-w-2xl py-8">
+          <Skeleton className="h-64 w-full" />
+        </main>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-muted/30">
-      {/* Fixed Header */}
-      <header className="fixed top-0 left-0 right-0 bg-card border-b border-border shadow-sm z-50">
-        <div className="container mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" className="md:hidden">
-              <Menu className="w-5 h-5" />
-            </Button>
-            <Link to="/" className="font-bold text-xl bg-gradient-cosmic bg-clip-text text-transparent">
-              F.U. Profile
-            </Link>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <Button asChild variant="wallet" size="sm">
-              <Link to="/wallet">
-                Kết nối ví
-              </Link>
-            </Button>
-            <Avatar className="cursor-pointer border-2 border-primary">
-              <AvatarFallback className="bg-primary/10 text-primary font-semibold">U</AvatarFallback>
-            </Avatar>
-          </div>
-        </div>
-      </header>
-
-      <div className="container mx-auto px-4 pt-20 pb-8">
-        <div className="grid lg:grid-cols-12 gap-6">
-          {/* Sidebar */}
-          <aside className="hidden lg:block lg:col-span-3">
-            <Card className="p-4 sticky top-24 shadow-card">
-              <nav className="space-y-2">
-                <Button variant="ghost" className="w-full justify-start text-primary bg-primary/10">
-                  <Home className="w-5 h-5 mr-3" />
-                  Trang chủ
-                </Button>
-                <Button variant="ghost" className="w-full justify-start">
-                  <Users className="w-5 h-5 mr-3" />
-                  Bạn bè
-                </Button>
-                <Button variant="ghost" className="w-full justify-start">
-                  <Users className="w-5 h-5 mr-3" />
-                  Nhóm
-                </Button>
-                <Button variant="ghost" className="w-full justify-start">
-                  <Bell className="w-5 h-5 mr-3" />
-                  Thông báo
-                </Button>
-                <Button variant="ghost" className="w-full justify-start">
-                  <Settings className="w-5 h-5 mr-3" />
-                  Cài đặt
-                </Button>
-              </nav>
-
-              <div className="mt-6 p-4 bg-gradient-cosmic rounded-xl text-primary-foreground">
-                <h3 className="font-semibold mb-2">🎁 Phần thưởng hôm nay</h3>
-                <p className="text-sm opacity-90">Đăng bài để nhận 999 CLC!</p>
+    <div className="min-h-screen bg-background">
+      <Navbar />
+      <main className="container max-w-7xl py-4 sm:py-8 px-4 sm:px-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Main Content - Left Side */}
+          <div className="lg:col-span-8">
+            <div className="mb-6 sm:mb-8">
+              <Card className="overflow-hidden">
+            {profile?.cover_url && (
+              <div className="w-full h-32 sm:h-48 bg-gradient-to-r from-primary/20 to-primary-glow/20">
+                <img 
+                  src={profile.cover_url} 
+                  alt="Cover" 
+                  className="w-full h-full object-cover"
+                />
               </div>
-            </Card>
-          </aside>
-
-          {/* Main Feed */}
-          <main className="lg:col-span-6 space-y-6">
-            {/* Post Input */}
-            <Card className="p-6 shadow-card">
-              <div className="flex gap-4">
-                <Avatar>
-                  <AvatarFallback className="bg-primary/10 text-primary font-semibold">U</AvatarFallback>
-                </Avatar>
-                <div className="flex-1 space-y-4">
-                  <Input 
-                    placeholder="Đăng bài để nhận 999 CLC nhé! ✨" 
-                    className="border-2 focus:border-primary"
-                  />
-                  <div className="flex items-center justify-between">
-                    <Button variant="ghost" size="sm">
-                      <Image className="w-4 h-4 mr-2" />
-                      Ảnh/Video
-                    </Button>
-                    <Button variant="hero" size="sm">
-                      Đăng bài
-                    </Button>
-                  </div>
+            )}
+            {!profile?.cover_url && (
+              <div className="w-full h-32 sm:h-48 bg-gradient-to-r from-primary/20 to-primary-glow/20" />
+            )}
+            <CardHeader className="text-center p-4 sm:p-6 relative">
+              <Avatar className="w-20 h-20 sm:w-24 sm:h-24 mx-auto -mt-12 sm:-mt-16 mb-3 sm:mb-4 border-4 border-background">
+                {profile?.avatar_url && <AvatarImage src={profile.avatar_url} />}
+                <AvatarFallback className="text-2xl sm:text-3xl">
+                  {profile?.username?.[0]?.toUpperCase() || 'U'}
+                </AvatarFallback>
+              </Avatar>
+              <CardTitle className="text-xl sm:text-2xl">{profile?.username}</CardTitle>
+              <p className="text-sm sm:text-base text-muted-foreground">{profile?.full_name || 'Chưa đặt tên'}</p>
+              {!isOwnProfile && currentUserId && (
+                <div className="mt-4">
+                  <FriendRequestButton userId={profile.id} currentUserId={currentUserId} />
                 </div>
-              </div>
-            </Card>
+              )}
+            </CardHeader>
+            <CardContent className="px-4 sm:px-6">
+              <p className="text-center text-sm sm:text-base break-words">{profile?.bio || 'Chưa có tiểu sử'}</p>
+            </CardContent>
+          </Card>
+            </div>
 
-            {/* Posts Feed */}
-            {posts.map((post) => (
-              <Card key={post.id} className="p-6 shadow-card hover:shadow-glow transition-all">
-                <div className="flex gap-4">
-                  <Avatar>
-                    <AvatarFallback className="bg-secondary/20 text-secondary font-semibold">
-                      {post.author[0]}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between mb-2">
-                      <div>
-                        <h3 className="font-semibold">{post.author}</h3>
-                        <p className="text-xs text-muted-foreground">{post.timestamp}</p>
-                      </div>
-                    </div>
-                    
-                    <p className="text-foreground mb-4 leading-relaxed">
-                      {post.content}
-                    </p>
-
-                    <div className="flex items-center gap-6 pt-4 border-t border-border">
-                      <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive">
-                        <Heart className="w-4 h-4 mr-2" />
-                        {post.likes}
-                      </Button>
-                      <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-primary">
-                        <MessageCircle className="w-4 h-4 mr-2" />
-                        {post.comments}
-                      </Button>
-                      <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-secondary">
-                        <Share2 className="w-4 h-4 mr-2" />
-                        Chia sẻ
-                      </Button>
-                    </div>
-                  </div>
-                </div>
+            <Tabs defaultValue="posts" className="w-full">
+          <TabsList className={`grid w-full ${isOwnProfile ? 'grid-cols-3' : 'grid-cols-1'} h-auto`}>
+            <TabsTrigger value="posts" className="text-xs sm:text-sm py-2">{isOwnProfile ? 'My Posts' : 'Posts'}</TabsTrigger>
+            {isOwnProfile && <TabsTrigger value="friends" className="text-xs sm:text-sm py-2">Friends</TabsTrigger>}
+            {isOwnProfile && <TabsTrigger value="edit" className="text-xs sm:text-sm py-2">Edit Profile</TabsTrigger>}
+          </TabsList>
+          <TabsContent value="posts" className="space-y-4 mt-6">
+            {posts.length === 0 ? (
+              <Card>
+                <CardContent className="py-8 text-center text-muted-foreground">
+                  No posts yet
+                </CardContent>
               </Card>
-            ))}
-          </main>
+            ) : (
+              posts.map((post) => (
+                <PostCard 
+                  key={post.id} 
+                  post={post} 
+                  currentUserId={currentUserId}
+                  onPostDeleted={handlePostDeleted}
+                />
+              ))
+            )}
+          </TabsContent>
+          {isOwnProfile && (
+            <>
+              <TabsContent value="friends" className="mt-6">
+                <FriendsList userId={currentUserId} />
+              </TabsContent>
+              <TabsContent value="edit" className="mt-6">
+                <EditProfile />
+              </TabsContent>
+            </>
+          )}
+            </Tabs>
+          </div>
 
-          {/* Right Sidebar */}
-          <aside className="hidden lg:block lg:col-span-3">
-            <Card className="p-4 sticky top-24 shadow-card">
-              <h3 className="font-semibold mb-4">Gợi ý kết bạn</h3>
-              <div className="space-y-4">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="flex items-center gap-3">
-                    <Avatar className="w-10 h-10">
-                      <AvatarFallback className="bg-muted">U{i}</AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">Người dùng {i}</p>
-                      <p className="text-xs text-muted-foreground">Thành viên mới</p>
-                    </div>
-                    <Button variant="outline" size="sm">
-                      Kết bạn
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          </aside>
+          {/* Honor Board - Right Side */}
+          <div className="lg:col-span-4 hidden lg:block">
+            <ProfileHonorBoard 
+              userId={profile.id}
+              username={profile.username}
+              avatarUrl={profile.avatar_url}
+            />
+          </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 };
